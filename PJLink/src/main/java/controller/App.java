@@ -8,8 +8,7 @@ public class App
 {
     public static void main( String[] args )
     {
-        int i = 10;
-        int a = 11;
-        System.out.println( "Hello World!" );
+        Projector p = new Projector("172.24.2.50");
+        p.turnProjectorOff();
     }
 }
