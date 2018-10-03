@@ -8,11 +8,13 @@ package controller;
  import java.util.*;
  import java.net.Socket;
  import java.io.*;
+ import java.security.*;
 
  public final class Projector{
     private String ip;
-    private char[] password;
+    private String password;
     private int port = 4352;
+    private Socket projectorSocket;
 
     //disable defaul constructor
     private Projector(){}
@@ -45,28 +47,29 @@ package controller;
     }
 
     public String switchInputRGB(){
-
+        return null;
     }
 
     public String switchInputVideo(){
-
+        return null;
     }
 
     public String switchInputStorage(){
-
+        return null;
     }
 
     public String switchInputDigital(){
-
+        return null;
     }
 
     public String switchInputNetwork(){
-
+        return null;
     }
 
     public String currentInput(){
         String answer = executeCommand("%INPT ?");
-        return getFeedBack(answer);
+        return getParam(answer);
+
     }
 
     public String muteVideo(){
@@ -76,39 +79,39 @@ package controller;
 
     public String unMuteVideo(){
         String answer = executeCommand("%1AVMT 10");
-        return getFeedBack(answer);
+        return getParam(answer);
     }
 
     public String muteAudio(){
         String answer = executeCommand("%1AVMT 21");
-        return getFeedBack(answer);
+        return getParam(answer);
     }
 
     public String unMuteAudio(){
         String answer = executeCommand("%1AVMT 20");
-        return getFeedBack(answer);
+        return getParam(answer);
     }
 
     public String muteVideoAndAudio(){
         String answer = executeCommand("%1AVMT 31");
-        return getFeedBack(answer);
+        return getParam(answer);
     }
 
     public String unMuteVideoAndAudio(){
         String answer = executeCommand("%1AVMT 30");
-        return getFeedBack(answer);
+        return getParam(answer);
     }
 
     public String muteStatus(){
         String answer = executeCommand("%1AVMT ?");
-        return getFeedBack(answer);
+        return getParam(answer);
     }
 
     public String errorReport(){
         String answer = executeCommand("%1ERST ?");
         String feedback = getFeedBack(answer);
         if (answer.equals(feedback)) {
-            String status = answer.substring(6, answer.length());
+            String status = answer.substring(7, answer.length());
             String[] items = {"Fan", "Lamp", "Temperature", "Cover open", "Filter", "Other"};
             String[] errors = {"No error detected or error detecting function found", "Warning", "Error found"};
             StringBuilder report = new StringBuilder();
@@ -141,54 +144,34 @@ package controller;
 
     public String getInputSources(){
         String answer = executeCommand("%1INST ?");
-        String feedBack = getFeedBack(answer);
+        String[] feedBack = getParams(answer);
 
-        if (answer.equals(feedBack)){
-            String[] status = answer.substring(6, answer.length()).split(" ");
-            return Arrays.toString(status);
-        }
-
-        return feedBack;
+        return Arrays.toString(feedBack);
     }
 
     public String requestProjectorName(){
         String answer = executeCommand("%1NAME ?");
-        String feedBack = getFeedBack(answer);
-
-        if (answer.equals(feedBack)){
-            return answer.substring(6, answer.length());
-        }
-
-        return feedBack;
+        return getParam(answer);
     }
 
     public String manufacturerInformation(){
         String answer = executeCommand("%1INF ?");
-        String feedBack = getFeedBack(answer);
-
-        if (answer.equals(feedBack)){
-            return answer.substring(6, answer.length());
-        }
-
-        return feedBack;
+        return getParam(answer);
     } 
 
     public String productNameInformation(){
         String answer = executeCommand("%1INF2 ?");
-        String info = answer.substring(6, answer.length());
-        return getFeedBack(info);
+        return getParam(answer);
     }
 
     public String otherInformationQuery(){
         String answer = executeCommand("%1INFO ?");
-        String info = answer.substring(6, answer.length());
-        return getFeedBack(info);
+        return getParam(answer);
     }
 
     public String getProjectorClass(){
         String answer = executeCommand("%1CLSS ?");
-        String info = answer.substring(6, answer.length());
-        return getFeedBack(info);
+        return getParam(answer);
     }
 
     private String getFeedBack(String response){
@@ -212,24 +195,40 @@ package controller;
             return "Projector/Display failure";
         }
 
-        return response;
+        return "";
     }
 
     private String executeCommand(String command){
         try {
-            Socket clientSocket = new Socket(ip, port);
-            OutputStream sender = clientSocket.getOutputStream();
-            InputStream receiver = clientSocket.getInputStream();
-            String projectorAnswer;
-            System.out.println(new String(receiver.readAllBytes()));
-            sender.write(command.getBytes());
-            projectorAnswer = new String(receiver.readAllBytes());
+            projectorSocket = new Socket(ip, port);
+            OutputStream sender = projectorSocket.getOutputStream();
+            InputStream receiver = projectorSocket.getInputStream();
+            
+            String answer = new String(receiver.readAllBytes());
+            String[] parameters = getParams(answer);
+            
+            if (parameters[0].equals("1")) {
+                byte[] hash = getMD5(parameters[1]);
+                byte[] commandBytes = command.getBytes();
+                byte[] authCommand = new byte[hash.length +commandBytes.length];
+                
+                for (int i = 0; i < authCommand.length; i++) {
+                    int commandBytesIndex = i + commandBytes.length;
+                    authCommand[i] = hash[i];
+                    authCommand[commandBytesIndex] = commandBytes[i];
+                }
 
-            clientSocket.close();
+                sender.write(authCommand);
+            }
+            else {
+                sender.write(command.getBytes());
+            }
+            String response = new String(receiver.readAllBytes());
+            projectorSocket.close();
             sender.close();
             receiver.close();
 
-            return projectorAnswer;
+            return response;
         }
         catch (Exception e) {
             e.printStackTrace();
@@ -237,8 +236,28 @@ package controller;
         }
     }
 
+    private byte[] getMD5(String number){
+        try {
+            MessageDigest md5 = MessageDigest.getInstance("MD5");
+            String d = number.concat(password);
+            return md5.digest(d.getBytes("UTF-8"));
+        }
+        catch (Exception e){
+            e.printStackTrace();
+        }
+        return new byte[0];
+      }
 
+    private String[] getParams(String command) {
+        return command
+                .substring(7, command.length())
+                .trim()
+                .split(" ");
+    }
 
-
-
+    private String getParam(String command){
+        return command
+                .substring(7, command.length())
+                .trim();
+    }
  }
