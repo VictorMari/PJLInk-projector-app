@@ -7,7 +7,8 @@ package controller;
 
  import java.util.*;
  import java.net.Socket;
- import java.io.*;
+import java.net.SocketException;
+import java.io.*;
 import java.math.BigInteger;
 import java.security.*;
 
@@ -15,7 +16,6 @@ import java.security.*;
     private String ip;
     private String password = "JBMIAProjectorLink";
     private int port = 4352;
-    private Socket projectorSocket;
 
     //disable defaul constructor
     private Projector(){}
@@ -33,18 +33,16 @@ import java.security.*;
     }
 
     public String turnProjectorOff(){
-        String answer =  executeCommand("%1POWR 0\r");
-        return getFeedBack(answer);
+        return executeCommand("%1POWR 0\r");
+        
     }
 
     public String turnProjectorOn(){
-        String answer =  executeCommand("%1POWR 1\r");
-        return getFeedBack(answer);
+        return  executeCommand("%1POWR 1\r");
     }
 
     public String getPowerStatus(){
-        String answer = executeCommand("%1POWR ?\r");
-        return getFeedBack(answer);
+        return executeCommand("%1POWR ?\r");
     }
 
     public String switchInputRGB(){
@@ -68,140 +66,73 @@ import java.security.*;
     }
 
     public String currentInput(){
-        String answer = executeCommand("%INPT ?");
-        return getParam(answer);
+        return executeCommand("%1INPT ?\r");
 
     }
 
     public String muteVideo(){
-        String answer = executeCommand("%1AVMT 11");
-        return getFeedBack(answer);
+        return executeCommand("%1AVMT 11\r");
     }
 
     public String unMuteVideo(){
-        String answer = executeCommand("%1AVMT 10");
-        return getParam(answer);
+        return executeCommand("%1AVMT 10\r");
     }
 
     public String muteAudio(){
-        String answer = executeCommand("%1AVMT 21");
-        return getParam(answer);
+        return executeCommand("%1AVMT 21\r");
     }
 
     public String unMuteAudio(){
-        String answer = executeCommand("%1AVMT 20");
-        return getParam(answer);
+        return executeCommand("%1AVMT 20\r");
     }
 
     public String muteVideoAndAudio(){
-        String answer = executeCommand("%1AVMT 31");
-        return getParam(answer);
+        return executeCommand("%1AVMT 31\r");
     }
 
     public String unMuteVideoAndAudio(){
-        String answer = executeCommand("%1AVMT 30");
-        return getParam(answer);
+        return executeCommand("%1AVMT 30\r");
     }
 
     public String muteStatus(){
-        String answer = executeCommand("%1AVMT ?");
-        return getParam(answer);
+        return executeCommand("%1AVMT ?\r");
     }
 
     public String errorReport(){
-        String answer = executeCommand("%1ERST ?");
-        String feedback = getFeedBack(answer);
-        if (answer.equals(feedback)) {
-            String status = answer.substring(7, answer.length());
-            String[] items = {"Fan", "Lamp", "Temperature", "Cover open", "Filter", "Other"};
-            String[] errors = {"No error detected or error detecting function found", "Warning", "Error found"};
-            StringBuilder report = new StringBuilder();
-            for (int i = 0; i < status.length(); i++) {
-                int errorNumber = status.charAt(i);
-                report.append(items[i] + ": " + errors[errorNumber]);
-            }
-            return report.toString();  
-        }
-        return feedback;
+        return executeCommand("%1ERST ?\r");
     }
 
     public String lampInformation(){
-        String answer = executeCommand("%1LAMP ?");
-        String feedBack = getFeedBack(answer);
-        if (answer.equals(feedBack)) {
-            StringBuilder report = new StringBuilder();
-            String[] status = answer.substring(6, answer.length()).split(" ");
-            for (int i = 0; i < status.length-1; i += 2) {
-                int lampNumber = i++;
-                boolean isOff = Integer.parseInt(status[lampNumber]) == 0;
-                int cumulativeLighting = Integer.parseInt(status[i]);
-                report.append("Lamp number: " + lampNumber + " is " + ((isOff) ? "Off" : "On") + " Cumulative lightning " + cumulativeLighting);
-            }
-
-            return report.toString();
-        }
-        return feedBack;
+        return executeCommand("%1LAMP ?\r");
     }
 
     public String getInputSources(){
-        String answer = executeCommand("%1INST ?");
-        String[] feedBack = getParams(answer);
-
-        return Arrays.toString(feedBack);
+        return executeCommand("%1INST ?\r");
     }
 
     public String requestProjectorName(){
-        String answer = executeCommand("%1NAME ?");
-        return getParam(answer);
+        return executeCommand("%1NAME ?\r");
     }
 
     public String manufacturerInformation(){
-        String answer = executeCommand("%1INF ?");
-        return getParam(answer);
+        return executeCommand("%1INF1 ?\r");
     } 
 
     public String productNameInformation(){
-        String answer = executeCommand("%1INF2 ?");
-        return getParam(answer);
+        return executeCommand("%1INF2 ?\r");
     }
 
     public String otherInformationQuery(){
-        String answer = executeCommand("%1INFO ?");
-        return getParam(answer);
+        return executeCommand("%1INFO ?\r");
     }
 
     public String getProjectorClass(){
-        String answer = executeCommand("%1CLSS ?");
-        return getParam(answer);
-    }
-
-    private String getFeedBack(String response){
-        if (response.contains("OK")) {
-            return "success";
-        }
-
-        if (response.contains("ERR1")) {
-            return "Undefine Command";
-        }
-
-        if (response.contains("ERR2")) {
-            return "Out of parameter";
-        }
-
-        if (response.contains("ERR3")) {
-            return "Un available time";
-        }
-
-        if (response.contains("ERR4")) {
-            return "Projector/Display failure";
-        }
-
-        return "";
+        return executeCommand("%1CLSS ?\r");
     }
 
     private String executeCommand(String command){
         try {
-            projectorSocket = new Socket(ip, port);
+            Socket projectorSocket = new Socket(ip, port);
             OutputStream sender = projectorSocket.getOutputStream();
             InputStream receiver = projectorSocket.getInputStream();
             
@@ -216,23 +147,25 @@ import java.security.*;
                 byte[] combinedBytes = new byte[md5Hash.length + commandBytes.length];
                 System.arraycopy(md5Hash, 0, combinedBytes, 0, md5Hash.length);
                 System.arraycopy(commandBytes, 0, combinedBytes, md5Hash.length, commandBytes.length);
-                System.out.println("Sending " + new String(combinedBytes));
 
                 sender.write(combinedBytes);
                 receiver.read(bytes);
-                System.out.println(new String(bytes));
+                response =  new String(bytes);
             }
             else {
                 sender.write(command.getBytes());
                 receiver.read(bytes);
-                return new String(bytes);
+                response = new String(bytes);
             }
 
             projectorSocket.close();
             sender.close();
             receiver.close();
 
-            return "";
+            return response;
+        }
+        catch(SocketException e){
+            return executeCommand(command);
         }
         catch (Exception e) {
             e.printStackTrace();

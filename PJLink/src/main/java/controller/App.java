@@ -6,9 +6,11 @@ package controller;
  */
 public class App 
 {
-    public static void main( String[] args )
+    public static void main(String[] args )
     {
         Projector p = new Projector("::1");
-        p.turnProjectorOff();
+        System.out.println(p.getProjectorClass());
+
     }
+
 }
