@@ -8,11 +8,12 @@ package controller;
  import java.util.*;
  import java.net.Socket;
  import java.io.*;
- import java.security.*;
+import java.math.BigInteger;
+import java.security.*;
 
  public final class Projector{
     private String ip;
-    private String password;
+    private String password = "JBMIAProjectorLink";
     private int port = 4352;
     private Socket projectorSocket;
 
@@ -32,17 +33,17 @@ package controller;
     }
 
     public String turnProjectorOff(){
-        String answer =  executeCommand("%POWR1");
+        String answer =  executeCommand("%1POWR 0\r");
         return getFeedBack(answer);
     }
 
     public String turnProjectorOn(){
-        String answer =  executeCommand("%POWR0");
+        String answer =  executeCommand("%1POWR 1\r");
         return getFeedBack(answer);
     }
 
     public String getPowerStatus(){
-        String answer = executeCommand("%1POWR ?");
+        String answer = executeCommand("%1POWR ?\r");
         return getFeedBack(answer);
     }
 
@@ -204,43 +205,50 @@ package controller;
             OutputStream sender = projectorSocket.getOutputStream();
             InputStream receiver = projectorSocket.getInputStream();
             
-            String answer = new String(receiver.readAllBytes());
-            String[] parameters = getParams(answer);
-            
-            if (parameters[0].equals("1")) {
-                byte[] hash = getMD5(parameters[1]);
+            byte[] bytes = new byte[32];//stores the response from the projector
+            receiver.read(bytes);//reads the initial response
+            String response =  new String(bytes);
+            String[] responseParameters = getParams(response);
+            Arrays.fill(bytes, (byte)0);
+            if (responseParameters[0].equals("1")) {
+                byte[] md5Hash = getMD5(responseParameters[1]);
                 byte[] commandBytes = command.getBytes();
-                byte[] authCommand = new byte[hash.length +commandBytes.length];
-                
-                for (int i = 0; i < authCommand.length; i++) {
-                    int commandBytesIndex = i + commandBytes.length;
-                    authCommand[i] = hash[i];
-                    authCommand[commandBytesIndex] = commandBytes[i];
-                }
+                byte[] combinedBytes = new byte[md5Hash.length + commandBytes.length];
+                System.arraycopy(md5Hash, 0, combinedBytes, 0, md5Hash.length);
+                System.arraycopy(commandBytes, 0, combinedBytes, md5Hash.length, commandBytes.length);
+                System.out.println("Sending " + new String(combinedBytes));
 
-                sender.write(authCommand);
+                sender.write(combinedBytes);
+                receiver.read(bytes);
+                System.out.println(new String(bytes));
             }
             else {
                 sender.write(command.getBytes());
+                receiver.read(bytes);
+                return new String(bytes);
             }
-            String response = new String(receiver.readAllBytes());
+
             projectorSocket.close();
             sender.close();
             receiver.close();
 
-            return response;
+            return "";
         }
         catch (Exception e) {
             e.printStackTrace();
             return "";
         }
+        
     }
 
     private byte[] getMD5(String number){
         try {
             MessageDigest md5 = MessageDigest.getInstance("MD5");
-            String d = number.concat(password);
-            return md5.digest(d.getBytes("UTF-8"));
+            md5.update(number.getBytes());
+            md5.update(password.getBytes());
+            byte[] digest = md5.digest();
+            BigInteger digitHash = new BigInteger(1, digest);
+            return digitHash.toString(16).getBytes();
         }
         catch (Exception e){
             e.printStackTrace();
